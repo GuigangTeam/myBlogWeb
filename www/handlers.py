@@ -67,9 +67,11 @@ def index(request):
         Blog(id='2', name='Something New', summary=summary, created_at=time.time()-3600),
         Blog(id='3', name='Learn Swift', summary=summary, created_at=time.time()-7200)
     ]
+    logging.info("__user__:%s" % request.__user__)
     return {
         '__template__': 'blogs.html',
-        'blogs': blogs
+        'blogs': blogs,
+        'user': request.__user__
     }
 
 @get('/register')
@@ -133,7 +135,8 @@ async def api_register_user(*, email, name, passwd):
         raise APIError('register:failed', 'email', 'Email is already in use.')
     uid = next_id()
     sha1_passwd = '%s:%s' % (uid, passwd)
-    user = User(id=uid, name=name.strip(), email=email, passwd=hashlib.sha1(sha1_passwd.encode('utf-8')).hexdigest(), image='http://www.gravatar.com/avatar/%s?d=mm&s=120' % hashlib.md5(email.encode('utf-8')).hexdigest())
+    user = User(id=uid, name=name.strip(),email=email, passwd=hashlib.sha1(sha1_passwd.encode('utf-8')).hexdigest(), image='http://www.gravatar.com/avatar/%s?d=mm&s=120' % hashlib.md5(email.encode('utf-8')).hexdigest())
+    logging.info('User:%s' % user.name)
     await user.save()
     # make session cookie:
     r = web.Response()
