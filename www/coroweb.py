@@ -28,14 +28,14 @@ def get_required_kw_args(fn):
 	args=[]
 	params=inspect.signature(fn).parameters    # 获取函数fn的参数
 	for name,param in params.items():
-		if param.kind==inspect.Parameter.KEYWORD_ONLY and param.default==inspect.Parameter.empty:  # KEYWORD_ONLY 命名关键字参数
+		if param.kind == inspect.Parameter.KEYWORD_ONLY and param.default == inspect.Parameter.empty:  # KEYWORD_ONLY 命名关键字参数
 			args.append(name)
 	return tuple(args)
 def get_named_kw_args(fn):
 	args=[]
 	params=inspect.signature(fn).parameters
 	for name,param in params.items():
-		if param.kind==inspect.Parameter.KEYWORD_ONLY:
+		if param.kind == inspect.Parameter.KEYWORD_ONLY:
 			args.append(name)
 	return tuple(args)
 def has_named_kw_args(fn):
@@ -74,28 +74,29 @@ class RequestHandler(object):
 		logging.info("coroweb.py 3")
 		logging.info("self._app=%s" % self._app)
 		logging.info("self._func=%s" % self._func)
+		logging.info(request.method)
 		logging.info(self._has_request_arg)
 		logging.info(self._has_named_kw_args)
 		logging.info(self._has_var_kw_arg)
 		logging.info(self._named_kw_args)
 		logging.info(self._required_kw_args)
-		logging.info(request.method)
 		kw=None
 		if self._has_var_kw_arg or self._has_named_kw_args or self._required_kw_args:
 			if request.method=='POST':
 				if not request.content_type:
 					return web.HTTPBadRequest('Missing Content-Type.')
-			ct = request.content_type.lower()
-			if ct.startswith('application/json'):
-				params=await request.json()
-				if not isinstance(params,dict):
-					return web.HTTPBadRequest('JSON body must be object.')
-				kw=params
-			elif ct.startswith('application/x-www-form-urlencoded') or ct.startswith('multipart.form_data'):
-				params=await request.post()
-				kw=dict(**params)
-			else:
-				return web.HTTPBadRequest('Unsupported Content-Type:%s' % request.content_type)
+				ct = request.content_type.lower()
+				logging.info("ct %s" % ct)
+				if ct.startswith('application/json'):
+					params=await request.json()
+					if not isinstance(params,dict):
+						return web.HTTPBadRequest('JSON body must be object.')
+					kw=params
+				elif ct.startswith('application/x-www-form-urlencoded') or ct.startswith('multipart.form_data'):
+					params=await request.post()
+					kw=dict(**params)
+				else:
+					return web.HTTPBadRequest('Unsupported Content-Type:%s' % request.content_type)
 			if request.method=='GET':
 				qs=request.query_string
 				if qs:
@@ -107,6 +108,7 @@ class RequestHandler(object):
 			kw=dict(**request.match_info)
 		else:
 			if not self._has_var_kw_arg and self._named_kw_args:
+				logging.info("Get else")
 				copy=dict()
 				for name in self._named_kw_args:
 					if name in kw:

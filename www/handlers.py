@@ -12,7 +12,7 @@ import markdown2
 from aiohttp import web
 
 from coroweb import get, post
-from apis import APIValueError, APIResourceNotFoundError
+from apis import APIValueError, APIResourceNotFoundError,Page
 
 from models import User, Comment, Blog, next_id
 from config import configs
@@ -22,6 +22,15 @@ _COOKIE_KEY = configs.session.secret
 def check_admin(request):
     if request.__user__ is None or not request.__user__.admin:
         raise APIPermissionError()
+def get_page_index(page_str):
+    p=1
+    try:
+        p=int(page_str)
+    except ValueError as e:
+        pass
+    if p<1:
+        p=1
+    return p
 def user2cookie(user, max_age):
     '''
     Generate cookie str by user.
@@ -60,13 +69,9 @@ async def cookie2user(cookie_str):
         return None
 
 @get('/')
-def index(request):
+async def index(request):
     summary = 'Lorem ipsum dolor sit amet, consectetur adipisicing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua.'
-    blogs = [
-        Blog(id='1', name='Test Blog', summary=summary, created_at=time.time()-120),
-        Blog(id='2', name='Something New', summary=summary, created_at=time.time()-3600),
-        Blog(id='3', name='Learn Swift', summary=summary, created_at=time.time()-7200)
-    ]
+    blogs =await Blog.findAll()
     logging.info("__user__:%s" % request.__user__)
     return {
         '__template__': 'blogs.html',
@@ -146,9 +151,25 @@ async def api_register_user(*, email, name, passwd):
     r.body = json.dumps(user, ensure_ascii=False).encode('utf-8')
     return r
 @get('/api/blogs/{id}')
-async def api_get_blog(*, id):
+async def api_get_blog(id):
     blog = await Blog.find(id)
     return blog
+@get('/api/blogs')
+async def api_blogs(*,page='1'):
+    page_index=get_page_index(page)
+    num=await Blog.findNumber('count(id)')
+    p=Page(num,page_index)
+    if num==0:
+        return dict(page=p,blogs=0)
+    blogs=await Blog.findAll(orderBy='created_at desc',limit=(p.offset,p.limit))
+    return dict(page=p,blogs=blogs)
+@get('/manage/blogs')
+def manage_blogs(request,*,page='1'):
+    return {
+    '__template__':'manage_blogs.html',
+    'page_index':get_page_index(page),
+    'user':request.__user__
+    }
 @post('/api/blogs')
 async def api_create_blog(request,*,name,summary,content):
     check_admin(request)
@@ -161,10 +182,30 @@ async def api_create_blog(request,*,name,summary,content):
     blog=Blog(user_id=request.__user__.id,user_name=request.__user__.name,user_image=request.__user__.image,name=name.strip(),summary=summary.strip(),content=content.strip())
     await blog.save()
     return blog
-@get('/blogs/create')
-def manage_create_blog():
+@get('/manage/blogs/create')
+def manage_create_blog(request):
     return {
         '__template__': 'manage_blog_edit.html',
         'id': '',
-        'action': '/api/blogs'
+        'action': '/api/blogs',
+        'user':request.__user__
+    }
+@get("/manage/blogs/edit")
+def manage_edit_blog(*,id):
+    return {
+    '__template__':'manage_blog_edit.html',
+    'id':id,
+    'action':'/api/blogs/%s' % id
+    }
+@get("/blog/{id}")
+async def get_blog(id):
+    blog=await Blog.find(id)
+    comments=await Comment.findAll('blog_id=?',[id],orderBy='created_at desc')
+    for c in comments:
+        c.html_content=text2html(c.content)
+    blog.html_content=markdown2.markdown(blog.content)
+    return {
+    '__template__':'blog.html',
+    'blog':blog,
+    'comments':comments
     }

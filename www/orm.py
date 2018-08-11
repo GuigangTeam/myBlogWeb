@@ -112,6 +112,7 @@ class Model(dict,metaclass=ModelMetaclass):
 		if len(rs)==0:
 			return None
 		return cls(**rs[0])
+	@classmethod
 	async def findNumber(cls, selectField, where=None, args=None):
 		' find number by select and where. '
 		sql = ['select %s _num_ from `%s`' % (selectField, cls.__table__)]
